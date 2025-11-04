@@ -1,0 +1,1064 @@
+{
+    "ruleSetName": "SSFNotification",
+    "Rules": [
+        {
+            "ID": 1,
+            "Rule": "pageAction",
+            "RuleGroup": "",
+            "disableFormValidation": false,
+            "enableLogs": true,
+            "WHEN": "(true)",
+            "THEN": [
+                "performAction"
+            ],
+            "Actions": [
+                {
+                    "id": 1,
+                    "actionName": "collectionData",
+                    "actionType": "getDataFromDB",
+                    "actionDetails": {
+                        "database_details": {
+                            "database": "{{payload.headers.dbName}}",
+                            "collection": "user"
+                        },
+                        "defaultSortSetting": {
+                            "sortField": "",
+                            "sortDirection": -1
+                        },
+                        "aggregation": [
+                            {
+                                "($)match": {
+                                    "userId": "{{payload.Context_Data.requestedBy}}"
+                                }
+                            },
+                            {
+                                "($)lookup": {
+                                    "from": "singleSourcePurchases",
+                                    "localField": "userId",
+                                    "foreignField": "requestedBy",
+                                    "as": "emailData"
+                                }
+                            },
+                            {
+                                "($)unwind": "($)emailData"
+                            },
+                            {
+                                "($)lookup": {
+                                    "from": "user",
+                                    "localField": "emailData.categoryManagerID",
+                                    "foreignField": "userId",
+                                    "as": "scmManagerMailId"
+                                }
+                            },
+                            {
+                                "($)unwind": "($)scmManagerMailId"
+                            },
+                            {
+                                "($)match": {
+                                    "emailData.singleSourceRequestNumber": "{{payload.singleSourceRequestNumber}}"
+                                }
+                            },
+                            {
+                                "($)facet": {
+                                    "paginatedResults": [
+                                        {
+                                            "($)project": {
+                                                "_id": 0,
+                                                "email": 1,
+                                                "firstName": 1,
+                                                "End_EmailUser": "($)emailData.singleSourceEndUserID",
+                                                "Buyer_EmailUser": "($)emailData.buyerID",
+                                                "scmManagerMailId": "($)scmManagerMailId.email"
+                                            }
+                                        }
+                                    ],
+                                    "totalCount": [
+                                        {
+                                            "($)count": "count"
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "nextAction": 2
+                },
+                {
+                    "id": 2,
+                    "actionName": "checkNotify",
+                    "actionType": "conditional",
+                    "actionDetails": {
+                        "WHEN": "'{{payload.status}}'=='Approve'",
+                        "THEN": [
+                            "nextAction=3"
+                        ],
+                        "ELSE": [
+                            "nextAction=4"
+                        ]
+                    }
+                },
+                {
+                    "id": 3,
+                    "actionName": "buyerEventBus",
+                    "actionType": "executeApi",
+                    "async": false,
+                    "actionDetailsBKP": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form - Approved",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - Approved - {{payload.singleSourceRequestNumber}}",
+                                "description": "Single Source Form - Approved",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "This is to notify that the Single Source Purchase request# {{payload.singleSourceRequestNumber}} is Approved.",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{payload.singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/esa-po-collab-template.html",
+                                "templateValue": {
+                                    "link": "{{payload.WF_BASE_URL}}/page/details_SSF?singleSourceRequestNumber={{payload.singleSourceRequestNumber}}",
+                                    "title": "Single Source Form - Approved - {{payload.singleSourceRequestNumber}}",
+                                    "footer1": "",
+                                    "footer2": "Sincerely,",
+                                    "footer3": "{{payload.UserName}}",
+                                    "remarks": "",
+                                    "schlogo": "https://esaaenprodschapp.blob.core.windows.net/schsupplier/templates/esa-specific/dev/logo.png",
+                                    "userName": "{{actionsResponse.collectionData[0].paginatedResults[0].firstName}},",
+                                    "emailBody1": "This is to notify that the Single Source Purchase request# {{payload.singleSourceRequestNumber}} is Approved.",
+                                    "emailBody2": "",
+                                    "bannerImage": "",
+                                    "pagecaption": "SSF Approval Notification",
+                                    "singleSourceRequestNumber": "{{payload.singleSourceRequestNumber}}"
+                                }
+                            }
+                        }
+                    },
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form - Approved",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - Approved - {{payload.singleSourceRequestNumber}}",
+                                "description": "Single Source Form - Approved",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "This is to notify that the Single Source Purchase request# {{payload.singleSourceRequestNumber}} is Approved.",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{payload.singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/common-templates/dev/schPortalTemplateV3.html",
+                                "templateValue": {
+                                    "link": "{{payload.WF_BASE_URL}}/page/details_SSF?singleSourceRequestNumber={{payload.singleSourceRequestNumber}}",
+                                    "title": "Single Source Form - Approved - {{payload.singleSourceRequestNumber}}",
+                                    "footer4": "{{payload.UserName}}",
+                                    "footer8": "Innovative procurement for a sustainable future",
+                                    "schlogo": "https://esaaenprodschapp.blob.core.windows.net/schsupplier/templates/esa-specific/dev/logo.png",
+                                    "footer1": "Sincerely,",
+                                    "emailBody3": "",
+                                    "userguide": "",
+                                    "userGuideText": "",
+                                    "Login Id": "",
+                                    "userName": "{{actionsResponse.collectionData[0].paginatedResults[0].firstName}},",
+                                    "emailBody1": "This is to notify that the Single Source Purchase request# {{payload.singleSourceRequestNumber}} is Approved.",
+                                    "emailBody2": "",
+                                    "emailBody7": "",
+                                    "singleSourceRequestNumber": "{{payload.singleSourceRequestNumber}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 6
+                },
+                {
+                    "id": 6,
+                    "actionName": "getDatatest",
+                    "actionType": "getDataFromDB",
+                    "async": false,
+                    "actionDetails": {
+                        "database_details": {
+                            "database": "{{payload.headers.dbName}}",
+                            "collection": "singleSourcePurchases"
+                        },
+                        "filter": {},
+                        "aggregation": [
+                            {
+                                "($)match": {
+                                    "singleSourceRequestNumber": "{{payload.Context_Data.singleSourceRequestNumber}}"
+                                }
+                            },
+                            {
+                                "($)addFields": {
+                                    "supplierName": {
+                                        "($)cond": {
+                                            "if": {
+                                                "($)or": [
+                                                    {
+                                                        "($)eq": [
+                                                            "($)supplier",
+                                                            null
+                                                        ]
+                                                    },
+                                                    {
+                                                        "($)eq": [
+                                                            "($)supplier",
+                                                            []
+                                                        ]
+                                                    }
+                                                ]
+                                            },
+                                            "then": "($)smepSuppliers",
+                                            "else": "($)supplier"
+                                        }
+                                    },
+                                    "newHierarchy": {
+                                        "($)cond": {
+                                            "if": {
+                                                "($)ne": [
+                                                    "($)singleSourceLineVPUserID",
+                                                    "{{payload.Context_Data.VP}}"
+                                                ]
+                                            },
+                                            "then": true,
+                                            "else": false
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "nextAction": 18
+                },
+                {
+                    "id": 17,
+                    "actionName": "check7",
+                    "actionType": "conditional",
+                    "actionDetails": {
+                        "WHEN": "('{{payload.singleSourceRequestNumber}}'=='2222')||('{{payload.singleSourceRequestNumber}}'=='2222')",
+                        "THEN": [
+                            "nextAction=7"
+                        ],
+                        "ELSE": [
+                            "nextAction=18"
+                        ]
+                    }
+                },
+                {
+                    "id": 7,
+                    "actionName": "notifn",
+                    "actionType": "executeApi",
+                    "async": false,
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "description": "Single Source Form",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com",
+                                    "navajothi.s@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/SSF_Format3.html",
+                                "templateValue": {
+                                    "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "pagecaption": "SSF Approved Notification",
+                                    "tebleHeading": "Request Details",
+                                    "tableHead": "Request Number",
+                                    "tableBody": "{{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "tableHead1": "Request Date",
+                                    "tableBody1": "{{actionsResponse.getDatatest[0].requestDate}}",
+                                    "tableHeadS1": "Request Type",
+                                    "tableBodyS1": "{{actionsResponse.getDatatest[0].singleSourceType}}",
+                                    "tableHeadS2": "End User",
+                                    "tableBodyS2": "{{actionsResponse.getDatatest[0].singleSourceEndUser}}",
+                                    "tableHeadS3": "Employee ID",
+                                    "tableBodyS3": "{{actionsResponse.getDatatest[0].singleSourceRequesterId}}",
+                                    "tableBodyS4": "{{actionsResponse.getDatatest[0].singleSourceRequester}}",
+                                    "tableHeadS4": "Employee Name",
+                                    "tableHeadS5": "Designation",
+                                    "tableBodyS5": "{{actionsResponse.getDatatest[0].singleSourceRequesterDesignation}}",
+                                    "tableHeadS6": "Department",
+                                    "tableBodyS6": "{{actionsResponse.getDatatest[0].singleSourceRequesterDepartment}}",
+                                    "tableHeadS7": "Line Manager",
+                                    "tableBodyS7": "{{actionsResponse.getDatatest[0].singleSourceLineManager}}",
+                                    "tableHeadS8": "VP/Chief Officer",
+                                    "tableBodyS8": "{{actionsResponse.getDatatest[0].singleSourceLineVP}}",
+                                    "tableHeadS9": "SCM Buyer",
+                                    "tableBodyS9": "{{actionsResponse.getDatatest[0].prBuyer}}",
+                                    "tableHeadS10": "SCM Category",
+                                    "tableBodyS10": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHeadS13": "Supplier Name",
+                                    "tableBodyS13": "{{actionsResponse.getDatatest[0].supplierName}}",
+                                    "tableHeadS11": "Procurement Manager",
+                                    "tableBodyS11": "{{actionsResponse.getDatatest[0].categoryManager}}",
+                                    "tableHeadS12": "PR Reference",
+                                    "tableBodyS12": "{{actionsResponse.getDatatest[0].prNumber}}",
+                                    "tableHeadS14": "PR Value (AED)",
+                                    "tableBodyS14": "{{actionsResponse.getDatatest[0].prValue}}",
+                                    "tableHead6": "Reason For Requesting",
+                                    "tableBody6": "{{actionsResponse.getDatatest[0].singleSourceReason}}",
+                                    "tableHead7": "Goods and Services Required",
+                                    "tableBody7": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHead8": "Benefit or Specialization from the Supplier",
+                                    "tableBody8": "{{actionsResponse.getDatatest[0].singleSourceBenefit}}",
+                                    "tebleHeading1": "Responsible Line Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[0].userName}}",
+                                    "tableHead9": "Decision",
+                                    "tableBody9": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionTaken}}",
+                                    "tableHead10": "Comments",
+                                    "tableBody10": "{{actionsResponse.getDatatest[0].workflowStatus[0].remarks}}",
+                                    "tebleHeading2": "Responsible VP Decision - {{actionsResponse.getDatatest[0].workflowStatus[1].userName}}",
+                                    "tableHead11": "Decision",
+                                    "tableBody11": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionTaken}}",
+                                    "tableHead12": "Comments",
+                                    "tableBody12": "{{actionsResponse.getDatatest[0].workflowStatus[1].remarks}}",
+                                    "tebleHeading3": "Responsible CFO Decision - {{actionsResponse.getDatatest[0].workflowStatus[2].userName}}",
+                                    "tableHead13": "Decision",
+                                    "tableBody13": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionTaken}}",
+                                    "tableHead14": "Comments",
+                                    "tableBody14": "{{actionsResponse.getDatatest[0].workflowStatus[2].remarks}}",
+                                    "tebleHeading4": "Responsible SCM Manager - {{actionsResponse.getDatatest[0].workflowStatus[3].userName}}",
+                                    "tableHead15": "Decision",
+                                    "tableBody15": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionTaken}}",
+                                    "tableHead16": "Comments",
+                                    "tableBody16": "{{actionsResponse.getDatatest[0].workflowStatus[3].remarks}}",
+                                    "tebleHeading5": "Responsible SCM VP - {{actionsResponse.getDatatest[0].workflowStatus[4].userName}}",
+                                    "tableHead17": "Decision",
+                                    "tableBody17": "{{actionsResponse.getDatatest[0].workflowStatus[4].decisionTaken}}",
+                                    "tableHead18": "Comments",
+                                    "tableBody18": "{{actionsResponse.getDatatest[0].workflowStatus[4].remarks}}",
+                                    "tableHeadS15": "Status",
+                                    "tableBodyS15": "Approved",
+                                    "tableHead19": "Decision Date",
+                                    "tableBody19": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionDate}}",
+                                    "tableHead20": "Decision Date",
+                                    "tableBody20": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionDate}}",
+                                    "tableHead21": "Decision Date",
+                                    "tableBody21": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionDate}}",
+                                    "tableHead22": "Decision Date",
+                                    "tableBody22": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}",
+                                    "tableHead23": "Decision Date",
+                                    "tableBody23": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 100
+                },
+                {
+                    "id": 18,
+                    "actionName": "check8",
+                    "actionType": "conditional",
+                    "actionDetails": {
+                        "WHEN": "(( '{{actionsResponse.getDatatest[0].singleSourceRequesterCompanyCode}}' == '1001' || '{{actionsResponse.getDatatest[0].singleSourceRequesterCompanyCode}}' == 'BM10' ) && ( '{{payload.Context_Data.plantBased}}' == 'Yes' ))",
+                        "THEN": [
+                            "nextAction=newHierarchy"
+                        ],
+                        "ELSE": [
+                            "nextAction=8"
+                        ]
+                    }
+                },
+                {
+                    "id": "newHierarchy",
+                    "actionName": "newHierarchy",
+                    "actionType": "conditional",
+                    "actionDetails": {
+                        "WHEN": "( '{{actionsResponse.getDatatest[0].newHierarchy}}' == 'true' )",
+                        "THEN": [
+                            "nextAction=sendNewArkanNotification"
+                        ],
+                        "ELSE": [
+                            "nextAction=19"
+                        ]
+                    }
+                },
+                {
+                    "id": 19,
+                    "actionName": "notifn",
+                    "actionType": "sendNotification",
+                    "async": false,
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "description": "Single Source Form",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/SSF_Format3.html",
+                                "templateValue": {
+                                    "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "pagecaption": "SSF Approved Notification",
+                                    "tebleHeading": "Request Details",
+                                    "tableHead": "Request Number",
+                                    "tableBody": "{{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "tableHead1": "Request Date",
+                                    "tableBody1": "{{actionsResponse.getDatatest[0].requestDate}}",
+                                    "tableHeadS1": "Request Type",
+                                    "tableBodyS1": "{{actionsResponse.getDatatest[0].singleSourceType}}",
+                                    "tableHeadS2": "End User",
+                                    "tableBodyS2": "{{actionsResponse.getDatatest[0].singleSourceEndUser}}",
+                                    "tableHeadS3": "Employee ID",
+                                    "tableBodyS3": "{{actionsResponse.getDatatest[0].singleSourceRequesterId}}",
+                                    "tableBodyS4": "{{actionsResponse.getDatatest[0].singleSourceRequester}}",
+                                    "tableHeadS4": "Employee Name",
+                                    "tableHeadS5": "Designation",
+                                    "tableBodyS5": "{{actionsResponse.getDatatest[0].singleSourceRequesterDesignation}}",
+                                    "tableHeadS6": "Department",
+                                    "tableBodyS6": "{{actionsResponse.getDatatest[0].singleSourceRequesterDepartment}}",
+                                    "tableHeadS7": "Line Manager",
+                                    "tableBodyS7": "{{actionsResponse.getDatatest[0].singleSourceLineManager}}",
+                                    "tableHeadS8": "VP/Chief Officer",
+                                    "tableBodyS8": "{{actionsResponse.getDatatest[0].singleSourceLineVP}}",
+                                    "tableHeadS9": "SCM Buyer",
+                                    "tableBodyS9": "{{actionsResponse.getDatatest[0].prBuyer}}",
+                                    "tableHeadS10": "SCM Category",
+                                    "tableBodyS10": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHeadS13": "Supplier Name",
+                                    "tableBodyS13": "{{actionsResponse.getDatatest[0].supplierName}}",
+                                    "tableHeadS11": "Procurement Manager",
+                                    "tableBodyS11": "{{actionsResponse.getDatatest[0].categoryManager}}",
+                                    "tableHeadS12": "PR Reference",
+                                    "tableBodyS12": "{{actionsResponse.getDatatest[0].prNumber}}",
+                                    "tableHeadS14": "PR Value (AED)",
+                                    "tableBodyS14": "{{actionsResponse.getDatatest[0].prValue}}",
+                                    "tableHead6": "Reason For Requesting",
+                                    "tableBody6": "{{actionsResponse.getDatatest[0].singleSourceReason}}",
+                                    "tableHead7": "Goods and Services Required",
+                                    "tableBody7": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHead8": "Benefit or Specialization from the Supplier",
+                                    "tableBody8": "{{actionsResponse.getDatatest[0].singleSourceBenefit}}",
+                                    "tebleHeading1": "Responsible Line Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[0].userName}}",
+                                    "tableHead9": "Decision",
+                                    "tableBody9": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionTaken}}",
+                                    "tableHead10": "Comments",
+                                    "tableBody10": "{{actionsResponse.getDatatest[0].workflowStatus[0].remarks}}",
+                                    "tebleHeading2": "Responsible Plant Director - {{actionsResponse.getDatatest[0].workflowStatus[1].userName}}",
+                                    "tableHead11": "Decision",
+                                    "tableBody11": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionTaken}}",
+                                    "tableHead12": "Comments",
+                                    "tableBody12": "{{actionsResponse.getDatatest[0].workflowStatus[1].remarks}}",
+                                    "tebleHeading3": "Responsible VP Decision - {{actionsResponse.getDatatest[0].workflowStatus[2].userName}}",
+                                    "tableHead13": "Decision",
+                                    "tableBody13": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionTaken}}",
+                                    "tableHead14": "Comments",
+                                    "tableBody14": "{{actionsResponse.getDatatest[0].workflowStatus[2].remarks}}",
+                                    "tebleHeading4": "Responsible SCM Manager - {{actionsResponse.getDatatest[0].workflowStatus[3].userName}}",
+                                    "tableHead15": "Decision",
+                                    "tableBody15": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionTaken}}",
+                                    "tableHead16": "Comments",
+                                    "tableBody16": "{{actionsResponse.getDatatest[0].workflowStatus[3].remarks}}",
+                                    "tebleHeading5": "Responsible SCM VP - {{actionsResponse.getDatatest[0].workflowStatus[4].userName}}",
+                                    "tableHead17": "Decision",
+                                    "tableBody17": "{{actionsResponse.getDatatest[0].workflowStatus[4].decisionTaken}}",
+                                    "tableHead18": "Comments",
+                                    "tableBody18": "{{actionsResponse.getDatatest[0].workflowStatus[4].remarks}}",
+                                    "tableHeadS15": "Status",
+                                    "tableBodyS15": "Approved",
+                                    "tableHead19": "Decision Date",
+                                    "tableBody19": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionDate}}",
+                                    "tableHead20": "Decision Date",
+                                    "tableBody20": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionDate}}",
+                                    "tableHead21": "Decision Date",
+                                    "tableBody21": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionDate}}",
+                                    "tableHead22": "Decision Date",
+                                    "tableBody22": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}",
+                                    "tableHead23": "Decision Date",
+                                    "tableBody23": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 100
+                },
+                {
+                    "id": "sendNewArkanNotification",
+                    "actionName": "sendNewArkanNotification",
+                    "actionType": "sendNotification",
+                    "async": false,
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "description": "Single Source Form",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/SSF_Format3.html",
+                                "templateValue": {
+                                    "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "pagecaption": "SSF Approved Notification",
+                                    "tebleHeading": "Request Details",
+                                    "tableHead": "Request Number",
+                                    "tableBody": "{{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "tableHead1": "Request Date",
+                                    "tableBody1": "{{actionsResponse.getDatatest[0].requestDate}}",
+                                    "tableHeadS1": "Request Type",
+                                    "tableBodyS1": "{{actionsResponse.getDatatest[0].singleSourceType}}",
+                                    "tableHeadS2": "End User",
+                                    "tableBodyS2": "{{actionsResponse.getDatatest[0].singleSourceEndUser}}",
+                                    "tableHeadS3": "Employee ID",
+                                    "tableBodyS3": "{{actionsResponse.getDatatest[0].singleSourceRequesterId}}",
+                                    "tableBodyS4": "{{actionsResponse.getDatatest[0].singleSourceRequester}}",
+                                    "tableHeadS4": "Employee Name",
+                                    "tableHeadS5": "Designation",
+                                    "tableBodyS5": "{{actionsResponse.getDatatest[0].singleSourceRequesterDesignation}}",
+                                    "tableHeadS6": "Department",
+                                    "tableBodyS6": "{{actionsResponse.getDatatest[0].singleSourceRequesterDepartment}}",
+                                    "tableHeadS7": "Line Manager",
+                                    "tableBodyS7": "{{actionsResponse.getDatatest[0].singleSourceLineManager}}",
+                                    "tableHeadS8": "VP/Chief Officer",
+                                    "tableBodyS8": "{{actionsResponse.getDatatest[0].singleSourceLineVP}}",
+                                    "tableHeadS9": "SCM Buyer",
+                                    "tableBodyS9": "{{actionsResponse.getDatatest[0].prBuyer}}",
+                                    "tableHeadS10": "SCM Category",
+                                    "tableBodyS10": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHeadS13": "Supplier Name",
+                                    "tableBodyS13": "{{actionsResponse.getDatatest[0].supplierName}}",
+                                    "tableHeadS11": "Procurement Manager",
+                                    "tableBodyS11": "{{actionsResponse.getDatatest[0].categoryManager}}",
+                                    "tableHeadS12": "PR Reference",
+                                    "tableBodyS12": "{{actionsResponse.getDatatest[0].prNumber}}",
+                                    "tableHeadS14": "PR Value (AED)",
+                                    "tableBodyS14": "{{actionsResponse.getDatatest[0].prValue}}",
+                                    "tableHead6": "Reason For Requesting",
+                                    "tableBody6": "{{actionsResponse.getDatatest[0].singleSourceReason}}",
+                                    "tableHead7": "Goods and Services Required",
+                                    "tableBody7": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHead8": "Benefit or Specialization from the Supplier",
+                                    "tableBody8": "{{actionsResponse.getDatatest[0].singleSourceBenefit}}",
+                                    "tebleHeading1": "Responsible Line Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[0].userName}}",
+                                    "tableHead9": "Decision",
+                                    "tableBody9": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionTaken}}",
+                                    "tableHead10": "Comments",
+                                    "tableBody10": "{{actionsResponse.getDatatest[0].workflowStatus[0].remarks}}",
+                                    "tebleHeading2": "Responsible  SCM Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[1].userName}}",
+                                    "tableHead11": "Decision",
+                                    "tableBody11": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionTaken}}",
+                                    "tableHead12": "Comments",
+                                    "tableBody12": "{{actionsResponse.getDatatest[0].workflowStatus[1].remarks}}",
+                                    "tebleHeading3": "Responsible  Plant Director Decision - {{actionsResponse.getDatatest[0].workflowStatus[2].userName}}",
+                                    "tableHead13": "Decision",
+                                    "tableBody13": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionTaken}}",
+                                    "tableHead14": "Comments",
+                                    "tableBody14": "{{actionsResponse.getDatatest[0].workflowStatus[2].remarks}}",
+                                    "tebleHeading4": "Responsible VP Decision - {{actionsResponse.getDatatest[0].workflowStatus[3].userName}}",
+                                    "tableHead15": "Decision",
+                                    "tableBody15": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionTaken}}",
+                                    "tableHead16": "Comments",
+                                    "tableBody16": "{{actionsResponse.getDatatest[0].workflowStatus[3].remarks}}",
+                                    "tebleHeading5": "Responsible SCM VP Decision- {{actionsResponse.getDatatest[0].workflowStatus[4].userName}}",
+                                    "tableHead17": "Decision",
+                                    "tableBody17": "{{actionsResponse.getDatatest[0].workflowStatus[4].decisionTaken}}",
+                                    "tableHead18": "Comments",
+                                    "tableBody18": "{{actionsResponse.getDatatest[0].workflowStatus[4].remarks}}",
+                                    "tableHeadS15": "Status",
+                                    "tableBodyS15": "Approved",
+                                    "tableHead19": "Decision Date",
+                                    "tableBody19": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionDate}}",
+                                    "tableHead20": "Decision Date",
+                                    "tableBody20": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionDate}}",
+                                    "tableHead21": "Decision Date",
+                                    "tableBody21": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionDate}}",
+                                    "tableHead22": "Decision Date",
+                                    "tableBody22": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}",
+                                    "tableHead23": "Decision Date",
+                                    "tableBody23": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 100
+                },
+                {
+                    "id": "ESL5Notification",
+                    "actionName": "ESL5Notification",
+                    "actionType": "sendNotification",
+                    "async": false,
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "description": "Single Source Form",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com",
+                                    "navajothi.s@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/SSF_Format3.html",
+                                "templateValue": {
+                                    "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "pagecaption": "SSF Approved Notification",
+                                    "tebleHeading": "Request Details",
+                                    "tableHead": "Request Number",
+                                    "tableBody": "{{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "tableHead1": "Request Date",
+                                    "tableBody1": "{{actionsResponse.getDatatest[0].requestDate}}",
+                                    "tableHeadS1": "Request Type",
+                                    "tableBodyS1": "{{actionsResponse.getDatatest[0].singleSourceType}}",
+                                    "tableHeadS2": "End User",
+                                    "tableBodyS2": "{{actionsResponse.getDatatest[0].singleSourceEndUser}}",
+                                    "tableHeadS3": "Employee ID",
+                                    "tableBodyS3": "{{actionsResponse.getDatatest[0].singleSourceRequesterId}}",
+                                    "tableBodyS4": "{{actionsResponse.getDatatest[0].singleSourceRequester}}",
+                                    "tableHeadS4": "Employee Name",
+                                    "tableHeadS5": "Designation",
+                                    "tableBodyS5": "{{actionsResponse.getDatatest[0].singleSourceRequesterDesignation}}",
+                                    "tableHeadS6": "Department",
+                                    "tableBodyS6": "{{actionsResponse.getDatatest[0].singleSourceRequesterDepartment}}",
+                                    "tableHeadS7": "Line Manager",
+                                    "tableBodyS7": "{{actionsResponse.getDatatest[0].singleSourceLineManager}}",
+                                    "tableHeadS8": "VP/Chief Officer",
+                                    "tableBodyS8": "{{actionsResponse.getDatatest[0].singleSourceLineVP}}",
+                                    "tableHeadS9": "SCM Buyer",
+                                    "tableBodyS9": "{{actionsResponse.getDatatest[0].prBuyer}}",
+                                    "tableHeadS10": "SCM Category",
+                                    "tableBodyS10": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHeadS13": "Supplier Name",
+                                    "tableBodyS13": "{{actionsResponse.getDatatest[0].supplierName}}",
+                                    "tableHeadS11": "Procurement Manager",
+                                    "tableBodyS11": "{{actionsResponse.getDatatest[0].categoryManager}}",
+                                    "tableHeadS12": "PR Reference",
+                                    "tableBodyS12": "{{actionsResponse.getDatatest[0].prNumber}}",
+                                    "tableHeadS14": "PR Value (AED)",
+                                    "tableBodyS14": "{{actionsResponse.getDatatest[0].prValue}}",
+                                    "tableHead6": "Reason For Requesting",
+                                    "tableBody6": "{{actionsResponse.getDatatest[0].singleSourceReason}}",
+                                    "tableHead7": "Goods and Services Required",
+                                    "tableBody7": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHead8": "Benefit or Specialization from the Supplier",
+                                    "tableBody8": "{{actionsResponse.getDatatest[0].singleSourceBenefit}}",
+                                    "tebleHeading1": "Responsible Line Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[0].userName}}",
+                                    "tableHead9": "Decision",
+                                    "tableBody9": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionTaken}}",
+                                    "tableHead10": "Comments",
+                                    "tableBody10": "{{actionsResponse.getDatatest[0].workflowStatus[0].remarks}}",
+                                    "tebleHeading2": "Responsible VP Decision - {{actionsResponse.getDatatest[0].workflowStatus[1].userName}}",
+                                    "tableHead11": "Decision",
+                                    "tableBody11": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionTaken}}",
+                                    "tableHead12": "Comments",
+                                    "tableBody12": "{{actionsResponse.getDatatest[0].workflowStatus[1].remarks}}",
+                                    "tebleHeading3": "Responsible SCM Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[2].userName}}",
+                                    "tableHead13": "Decision",
+                                    "tableBody13": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionTaken}}",
+                                    "tableHead14": "Comments",
+                                    "tableBody14": "{{actionsResponse.getDatatest[0].workflowStatus[2].remarks}}",
+                                    "tebleHeading4": "Responsible SCM VP - {{actionsResponse.getDatatest[0].workflowStatus[3].userName}}",
+                                    "tableHead15": "Decision",
+                                    "tableBody15": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionTaken}}",
+                                    "tableHead16": "Comments",
+                                    "tableBody16": "{{actionsResponse.getDatatest[0].workflowStatus[3].remarks}}",
+                                    "tebleHeading5": "Responsible GCEO - {{actionsResponse.getDatatest[0].workflowStatus[4].userName}}",
+                                    "tableHead17": "Decision",
+                                    "tableBody17": "{{actionsResponse.getDatatest[0].workflowStatus[4].decisionTaken}}",
+                                    "tableHead18": "Comments",
+                                    "tableBody18": "{{actionsResponse.getDatatest[0].workflowStatus[4].remarks}}",
+                                    "tableHeadS15": "Status",
+                                    "tableBodyS15": "Approved",
+                                    "tableHead19": "Decision Date",
+                                    "tableBody19": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionDate}}",
+                                    "tableHead20": "Decision Date",
+                                    "tableBody20": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionDate}}",
+                                    "tableHead21": "Decision Date",
+                                    "tableBody21": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionDate}}",
+                                    "tableHead22": "Decision Date",
+                                    "tableBody22": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}",
+                                    "tableHead23": "Decision Date",
+                                    "tableBody23": "{{actionsResponse.getDatatest[0].workflowStatus[4].decisionDate}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 100
+                },
+                {
+                    "id": 8,
+                    "actionName": "notifn",
+                    "actionType": "sendNotification",
+                    "async": false,
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "description": "Single Source Form",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com",
+                                    "navajothi.s@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/SSF_Format4.html",
+                                "templateValue": {
+                                    "title": "Single Source Form - {{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "pagecaption": "SSF Approved Notification",
+                                    "tebleHeading": "Request Details",
+                                    "tableHead": "Request Number",
+                                    "tableBody": "{{actionsResponse.getDatatest[0].singleSourceRequestNumber}}",
+                                    "tableHead1": "Request Date",
+                                    "tableBody1": "{{actionsResponse.getDatatest[0].requestDate}}",
+                                    "tableHeadS1": "Request Type",
+                                    "tableBodyS1": "{{actionsResponse.getDatatest[0].singleSourceType}}",
+                                    "tableHeadS2": "End User",
+                                    "tableBodyS2": "{{actionsResponse.getDatatest[0].singleSourceEndUser}}",
+                                    "tableHeadS3": "Employee ID",
+                                    "tableBodyS3": "{{actionsResponse.getDatatest[0].singleSourceRequesterId}}",
+                                    "tableBodyS4": "{{actionsResponse.getDatatest[0].singleSourceRequester}}",
+                                    "tableHeadS4": "Employee Name",
+                                    "tableHeadS5": "Designation",
+                                    "tableBodyS5": "{{actionsResponse.getDatatest[0].singleSourceRequesterDesignation}}",
+                                    "tableHeadS6": "Department",
+                                    "tableBodyS6": "{{actionsResponse.getDatatest[0].singleSourceRequesterDepartment}}",
+                                    "tableHeadS7": "Line Manager",
+                                    "tableBodyS7": "{{actionsResponse.getDatatest[0].singleSourceLineManager}}",
+                                    "tableHeadS8": "VP/Chief Officer",
+                                    "tableBodyS8": "{{actionsResponse.getDatatest[0].singleSourceLineVP}}",
+                                    "tableHeadS9": "SCM Buyer",
+                                    "tableBodyS9": "{{actionsResponse.getDatatest[0].prBuyer}}",
+                                    "tableHeadS10": "SCM Category",
+                                    "tableBodyS10": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHeadS13": "Supplier Name",
+                                    "tableBodyS13": "{{actionsResponse.getDatatest[0].supplierName}}",
+                                    "tableHeadS11": "Procurement Manager",
+                                    "tableBodyS11": "{{actionsResponse.getDatatest[0].categoryManager}}",
+                                    "tableHeadS12": "PR Reference",
+                                    "tableBodyS12": "{{actionsResponse.getDatatest[0].prNumber}}",
+                                    "tableHeadS14": "PR Value (AED)",
+                                    "tableBodyS14": "{{actionsResponse.getDatatest[0].prValue}}",
+                                    "tableHead6": "Reason For Requesting",
+                                    "tableBody6": "{{actionsResponse.getDatatest[0].singleSourceReason}}",
+                                    "tableHead7": "Goods and Services Required",
+                                    "tableBody7": "{{actionsResponse.getDatatest[0].scmCategory}}",
+                                    "tableHead8": "Benefit or Specialization from the Supplier",
+                                    "tableBody8": "{{actionsResponse.getDatatest[0].singleSourceBenefit}}",
+                                    "tebleHeading1": "Responsible Line Manager Decision - {{actionsResponse.getDatatest[0].workflowStatus[0].userName}}",
+                                    "tableHead9": "Decision",
+                                    "tableBody9": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionTaken}}",
+                                    "tableHead10": "Comments",
+                                    "tableBody10": "{{actionsResponse.getDatatest[0].workflowStatus[0].remarks}}",
+                                    "tebleHeading2": "Responsible VP Decision - {{actionsResponse.getDatatest[0].workflowStatus[1].userName}}",
+                                    "tableHead11": "Decision",
+                                    "tableBody11": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionTaken}}",
+                                    "tableHead12": "Comments",
+                                    "tableBody12": "{{actionsResponse.getDatatest[0].workflowStatus[1].remarks}}",
+                                    "tebleHeading4": "Responsible SCM Manager - {{actionsResponse.getDatatest[0].workflowStatus[2].userName}}",
+                                    "tableHead15": "Decision",
+                                    "tableBody15": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionTaken}}",
+                                    "tableHead16": "Comments",
+                                    "tableBody16": "{{actionsResponse.getDatatest[0].workflowStatus[2].remarks}}",
+                                    "tebleHeading5": "Responsible SCM VP - {{actionsResponse.getDatatest[0].workflowStatus[3].userName}}",
+                                    "tableHead17": "Decision",
+                                    "tableBody17": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionTaken}}",
+                                    "tableHead18": "Comments",
+                                    "tableBody18": "{{actionsResponse.getDatatest[0].workflowStatus[3].remarks}}",
+                                    "tableHeadS15": "Status",
+                                    "tableBodyS15": "Approved",
+                                    "tableHead19": "Decision Date",
+                                    "tableBody19": "{{actionsResponse.getDatatest[0].workflowStatus[0].decisionDate}}",
+                                    "tableHead20": "Decision Date",
+                                    "tableBody20": "{{actionsResponse.getDatatest[0].workflowStatus[1].decisionDate}}",
+                                    "tableHead22": "Decision Date",
+                                    "tableBody22": "{{actionsResponse.getDatatest[0].workflowStatus[2].decisionDate}}",
+                                    "tableHead23": "Decision Date",
+                                    "tableBody23": "{{actionsResponse.getDatatest[0].workflowStatus[3].decisionDate}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 100
+                },
+                {
+                    "id": 4,
+                    "actionName": "buyerEventBus",
+                    "actionType": "executeApi",
+                    "async": false,
+                    "actionDetails": {
+                        "apiDetails": {
+                            "URL": "/notification_engine/insert-queue",
+                            "Method": "Post"
+                        },
+                        "Body": {
+                            "businessComponentId": "SSF",
+                            "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                            "sourceType": "ruleSet",
+                            "notificationType": "ESA Specific Workflows",
+                            "notificationDescription": "Single Source Form - Rejected",
+                            "eventLog": {
+                                "enabled": true,
+                                "notificationId": "{{thisActionResponse.emailLogId}}",
+                                "title": "Single Source Form - Rejected - {{payload.singleSourceRequestNumber}}",
+                                "description": "Single Source Form - Rejected",
+                                "businessComponent": "SSF",
+                                "businessComponentInstance": "{{payload.singleSourceRequestNumber}}",
+                                "longDescription": "This is to notify that the Single Source Purchase request# {{payload.singleSourceRequestNumber}} is Rejected.",
+                                "event": "notification",
+                                "eventDetails": {}
+                            },
+                            "data": {
+                                "userIds": [
+                                    "{{payload.Context_Data.requestedBy}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].End_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].Buyer_EmailUser}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].categoryManagerID}}"
+                                ],
+                                "emailId": [
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].email}}"
+                                ],
+                                "ccEmailId": [
+                                    "{{payload.End_EmailId}}",
+                                    "{{payload.Buyer_EmailId}}",
+                                    "{{payload.End_User_EmailId}}",
+                                    "{{actionsResponse.collectionData[0].paginatedResults[0].scmManagerMailId}}",
+                                    "manoranjitham.m@supplychainhub.com"
+                                ],
+                                "subject": "Single Source Purchase Request# {{payload.singleSourceRequestNumber}}",
+                                "tenant": "{{payload.Context_Data.tenant}}",
+                                "templateUrl": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/common-templates/dev/schPortalTemplateV3.html",
+                                "templateValue": {
+                                    "link": "{{payload.WF_BASE_URL}}/page/details_SSF?singleSourceRequestNumber={{payload.singleSourceRequestNumber}}",
+                                    "title": "Single Source Form - Rejected - {{payload.singleSourceRequestNumber}}",
+                                    "footer2": "",
+                                    "footer4": "{{payload.Prev_User_Name}}",
+                                    "footer1": "Sincerely,",
+                                    "schlogo": "https://esaaenprodschapppublic.blob.core.windows.net/schsupplier/templates/esa-specific/dev/logo.png",
+                                    "userName": "{{actionsResponse.collectionData[0].paginatedResults[0].firstName}},",
+                                    "emailBody1": "This is to notify that the Single Source Purchase request# {{payload.singleSourceRequestNumber}} is Rejected.",
+                                    "emailBody2": "Reason For Rejection : {{payload.Remarks}}",
+                                    "bannerImage": "",
+                                    "pagecaption": "SSF Rejection Notification",
+                                    "singleSourceRequestNumber": "{{payload.singleSourceRequestNumber}}"
+                                }
+                            }
+                        }
+                    },
+                    "nextAction": 100
+                },
+                {
+                    "id": 100,
+                    "actionName": "RequestComplete",
+                    "actionType": "completed",
+                    "actionDetails": {}
+                }
+            ],
+            "Output": {
+                "act1resp": "{{actionsResponse}}"
+            }
+        }
+    ]
+}
