@@ -21,7 +21,6 @@ import {
   Alert,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import DownloadIcon from "@mui/icons-material/Download";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
@@ -36,6 +35,7 @@ export default function ExcelUploadPage() {
   const [activeProcessedSheet, setActiveProcessedSheet] = useState(0);
   const [processedBase64, setProcessedBase64] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [mainTab, setMainTab] = useState(0); // 0 = Uploaded File, 1 = Processed File
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -55,7 +55,6 @@ export default function ExcelUploadPage() {
     setSnackbar({ ...snackbar, open: false });
   };
 
-  // 1️⃣ Handle file select & local preview
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -85,7 +84,6 @@ export default function ExcelUploadPage() {
     reader.readAsBinaryString(file);
   };
 
-  // 2️⃣ Convert file to Base64 & send to backend
   const handleUpload = async () => {
     if (!selectedFile) {
       showSnackbar("Please select a file first!", "warning");
@@ -103,8 +101,12 @@ export default function ExcelUploadPage() {
         });
 
         if (res.data?.processedFile) {
-          setProcessedBase64(res.data.processedFile);
+          const base64Data = res.data.processedFile;
+          setProcessedBase64(base64Data);
           showSnackbar("File processed successfully!", "success");
+          // Automatically preview processed file and switch to processed tab
+          previewProcessedFile(base64Data);
+          setMainTab(1); // Switch to processed file tab
         } else {
           showSnackbar("No processed file data received.", "error");
         }
@@ -120,13 +122,13 @@ export default function ExcelUploadPage() {
   };
 
   // 3️⃣ Preview processed Excel (Base64 → XLSX)
-  const handlePreviewProcessed = () => {
-    if (!processedBase64) {
+  const previewProcessedFile = (base64Data) => {
+    if (!base64Data) {
       showSnackbar("No processed file available.", "warning");
       return;
     }
 
-    const binary = atob(processedBase64);
+    const binary = atob(base64Data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
@@ -145,7 +147,10 @@ export default function ExcelUploadPage() {
     setActiveProcessedSheet(0); // Reset to first sheet
   };
 
-  // 4️⃣ Download processed file
+  const handlePreviewProcessed = () => {
+    previewProcessedFile(processedBase64);
+  };
+
   const handleDownload = () => {
     if (!processedBase64) {
       showSnackbar("No processed file available.", "warning");
@@ -179,13 +184,22 @@ export default function ExcelUploadPage() {
       <TableContainer 
         component={Paper} 
         sx={{ 
-          maxHeight: 500, 
+          height: 500,  // Fixed height to prevent container size changes
           overflow: "auto",
           mx: "auto",
-          width: "100%"
+          width: "100%",
+          display: "flex",
+          flexDirection: "column"
         }}
       >
-        <Table stickyHeader size="small">
+        <Table 
+          stickyHeader 
+          size="small"
+          sx={{
+            tableLayout: "fixed",
+            width: "100%"
+          }}
+        >
           <TableHead>
             <TableRow>
               {data[0]?.map((col, i) => (
@@ -196,7 +210,9 @@ export default function ExcelUploadPage() {
                     backgroundColor: "#f5f5f5",
                     position: "sticky",
                     top: 0,
-                    zIndex: 1
+                    zIndex: 1,
+                    width: `${100 / maxCols}%`,
+                    minWidth: 100
                   }}
                 >
                   {col || `Column ${i + 1}`}
@@ -211,7 +227,9 @@ export default function ExcelUploadPage() {
                     backgroundColor: "#f5f5f5",
                     position: "sticky",
                     top: 0,
-                    zIndex: 1
+                    zIndex: 1,
+                    width: `${100 / maxCols}%`,
+                    minWidth: 100
                   }}
                 >
                   {`Column ${(data[0]?.length || 0) + i + 1}`}
@@ -222,9 +240,20 @@ export default function ExcelUploadPage() {
           <TableBody>
             {data.slice(1).map((row, i) => (
               <TableRow key={i}>
-                {Array.from({ length: maxCols }).map((_, j) => (
-                  <TableCell key={j}>{row?.[j] || ""}</TableCell>
-                ))}
+              {Array.from({ length: maxCols }).map((_, j) => (
+                <TableCell 
+                  key={j}
+                  sx={{
+                    width: `${100 / maxCols}%`,
+                    minWidth: 100,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  {row?.[j] || ""}
+                </TableCell>
+              ))}
               </TableRow>
             ))}
           </TableBody>
@@ -283,56 +312,10 @@ export default function ExcelUploadPage() {
         )}
       </Stack>
 
-      {sheetNames.length > 0 && (
-        <Box sx={{ mt: 3, textAlign: "center" }}>
-          <Typography 
-            variant="subtitle1" 
-            gutterBottom 
-            sx={{ 
-              color: "#213547",
-              fontWeight: 600,
-              mb: 2
-            }}
-          >
-            Preview of Uploaded File
-          </Typography>
-          {sheetNames.length > 1 && (
-            <Box sx={{ 
-              mb: 2, 
-              borderBottom: 1, 
-              borderColor: "divider",
-              width: "100%",
-              overflowX: "auto"
-            }}>
-              <Tabs
-                value={activeSheet}
-                onChange={(e, newValue) => setActiveSheet(newValue)}
-                variant="scrollable"
-                scrollButtons="auto"
-                allowScrollButtonsMobile
-                sx={{ 
-                  width: "100%",
-                  "& .MuiTabs-scrollButtons": {
-                    "&.Mui-disabled": {
-                      opacity: 0.3
-                    }
-                  }
-                }}
-              >
-                {sheetNames.map((name, index) => (
-                  <Tab key={index} label={name} sx={{ textTransform: "none" }} />
-                ))}
-              </Tabs>
-            </Box>
-          )}
-          {renderTable(previewData[sheetNames[activeSheet]] || [])}
-        </Box>
-      )}
-
       <Stack 
         direction="row" 
         spacing={2} 
-        sx={{ mt: 4, justifyContent: "center", flexWrap: "wrap" }}
+        sx={{ mt: 3, mb: 3, justifyContent: "center", flexWrap: "wrap" }}
       >
         <Button
           variant="contained"
@@ -346,79 +329,115 @@ export default function ExcelUploadPage() {
         </Button>
 
         {processedBase64 && (
-          <>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handlePreviewProcessed}
-              startIcon={<VisibilityIcon />}
-              sx={{ borderRadius: 2 }}
-            >
-              Preview Processed
-            </Button>
-            <Button
-              variant="contained"
-              color="info"
-              onClick={handleDownload}
-              startIcon={<DownloadIcon />}
-              sx={{ borderRadius: 2 }}
-            >
-              Download
-            </Button>
-          </>
+          <Button
+            variant="contained"
+            color="info"
+            onClick={handleDownload}
+            startIcon={<DownloadIcon />}
+            sx={{ borderRadius: 2 }}
+          >
+            Download
+          </Button>
         )}
       </Stack>
 
-      {processedSheetNames.length > 0 && (
-        <Box sx={{ mt: 4, textAlign: "center" }}>
-          <Typography 
-            variant="subtitle1" 
-            gutterBottom 
+      {/* Main Tab Navigation */}
+      {(sheetNames.length > 0 || processedSheetNames.length > 0) && (
+        <Box sx={{ mt: 3, textAlign: "center" }}>
+          <Tabs
+            value={mainTab}
+            onChange={(e, newValue) => setMainTab(newValue)}
             sx={{ 
-              color: "#213547",
-              fontWeight: 600,
-              mb: 2
-            }}
-          >
-            Processed File Preview
-          </Typography>
-          {processedSheetNames.length > 1 && (
-            <Box sx={{ 
-              mb: 2, 
+              mb: 3,
               borderBottom: 1, 
               borderColor: "divider",
-              width: "100%",
-              overflowX: "auto"
-            }}>
-              <Tabs
-                value={activeProcessedSheet}
-                onChange={(e, newValue) => setActiveProcessedSheet(newValue)}
-                variant="scrollable"
-                scrollButtons="auto"
-                allowScrollButtonsMobile
-                sx={{ 
+              "& .MuiTabs-flexContainer": {
+                justifyContent: "center"
+              }
+            }}
+          >
+            <Tab label="Uploaded File" />
+            <Tab label="Processed File" disabled={processedSheetNames.length === 0} />
+          </Tabs>
+
+          {/* Uploaded File Tab Content */}
+          {mainTab === 0 && sheetNames.length > 0 && (
+            <Box>
+              {sheetNames.length > 1 && (
+                <Box sx={{ 
+                  mb: 2, 
+                  borderBottom: 1, 
+                  borderColor: "divider",
                   width: "100%",
-                  "& .MuiTabs-scrollButtons": {
-                    "&.Mui-disabled": {
-                      opacity: 0.3
-                    }
-                  }
-                }}
-              >
-                {processedSheetNames.map((name, index) => (
-                  <Tab key={index} label={name} sx={{ textTransform: "none" }} />
-                ))}
-              </Tabs>
+                  overflowX: "auto"
+                }}>
+                  <Tabs
+                    value={activeSheet}
+                    onChange={(e, newValue) => setActiveSheet(newValue)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
+                    sx={{ 
+                      width: "100%",
+                      "& .MuiTabs-scrollButtons": {
+                        "&.Mui-disabled": {
+                          opacity: 0.3
+                        }
+                      }
+                    }}
+                  >
+                    {sheetNames.map((name, index) => (
+                      <Tab key={index} label={name} sx={{ textTransform: "none" }} />
+                    ))}
+                  </Tabs>
+                </Box>
+              )}
+              {renderTable(previewData[sheetNames[activeSheet]] || [])}
             </Box>
           )}
-          {renderTable(processedPreviewData[processedSheetNames[activeProcessedSheet]] || [])}
+
+          {/* Processed File Tab Content */}
+          {mainTab === 1 && processedSheetNames.length > 0 && (
+            <Box>
+              {processedSheetNames.length > 1 && (
+                <Box sx={{ 
+                  mb: 2, 
+                  borderBottom: 1, 
+                  borderColor: "divider",
+                  width: "100%",
+                  overflowX: "auto"
+                }}>
+                  <Tabs
+                    value={activeProcessedSheet}
+                    onChange={(e, newValue) => setActiveProcessedSheet(newValue)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
+                    sx={{ 
+                      width: "100%",
+                      "& .MuiTabs-scrollButtons": {
+                        "&.Mui-disabled": {
+                          opacity: 0.3
+                        }
+                      }
+                    }}
+                  >
+                    {processedSheetNames.map((name, index) => (
+                      <Tab key={index} label={name} sx={{ textTransform: "none" }} />
+                    ))}
+                  </Tabs>
+                </Box>
+              )}
+              {renderTable(processedPreviewData[processedSheetNames[activeProcessedSheet]] || [])}
+            </Box>
+          )}
         </Box>
       )}
 
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={5000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
