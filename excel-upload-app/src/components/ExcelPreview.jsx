@@ -14,36 +14,7 @@ import {
   Tab,
   CircularProgress,
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
-
-const PreviewContainer = styled(Box)(({ theme }) => ({
-  flex: 1,
-  overflow: "auto",
-  backgroundColor: "#f5f5f5",
-  display: "flex",
-  flexDirection: "column",
-  padding: "24px",
-}));
-
-const PreviewContent = styled(Box)(({ theme }) => ({
-  flex: 1,
-  backgroundColor: "#ffffff",
-  borderRadius: "8px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-  padding: "24px",
-  overflow: "auto",
-  display: "flex",
-  flexDirection: "column",
-}));
-
-const EmptyState = styled(Box)(({ theme }) => ({
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "100%",
-  color: "#6c757d",
-}));
+import "./ExcelPreview.css";
 
 export default function ExcelPreview({ processedFileBase64 }) {
   const [previewData, setPreviewData] = useState({});
@@ -94,36 +65,19 @@ export default function ExcelPreview({ processedFileBase64 }) {
     return (
       <TableContainer
         component={Paper}
-        sx={{
-          height: "calc(100vh - 200px)",
-          overflow: "auto",
-          width: "100%",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="excel-preview-table-container"
       >
         <Table
           stickyHeader
-          size="small"
-          sx={{
-            tableLayout: "fixed",
-            width: "100%",
-          }}
+          size="medium"
+          className="excel-preview-table"
         >
           <TableHead>
             <TableRow>
               {data[0]?.map((col, i) => (
                 <TableCell
                   key={i}
-                  sx={{
-                    fontWeight: "bold",
-                    backgroundColor: "#f5f5f5",
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 1,
-                    width: `${100 / maxCols}%`,
-                    minWidth: 100,
-                  }}
+                  className="excel-preview-header-cell"
                 >
                   {col || `Column ${i + 1}`}
                 </TableCell>
@@ -133,15 +87,7 @@ export default function ExcelPreview({ processedFileBase64 }) {
               }).map((_, i) => (
                 <TableCell
                   key={`empty-${i}`}
-                  sx={{
-                    fontWeight: "bold",
-                    backgroundColor: "#f5f5f5",
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 1,
-                    width: `${100 / maxCols}%`,
-                    minWidth: 100,
-                  }}
+                  className="excel-preview-header-cell"
                 >
                   {`Column ${(data[0]?.length || 0) + i + 1}`}
                 </TableCell>
@@ -150,17 +96,11 @@ export default function ExcelPreview({ processedFileBase64 }) {
           </TableHead>
           <TableBody>
             {data.slice(1).map((row, i) => (
-              <TableRow key={i}>
+              <TableRow key={i} className="excel-preview-table-row">
                 {Array.from({ length: maxCols }).map((_, j) => (
                   <TableCell
                     key={j}
-                    sx={{
-                      width: `${100 / maxCols}%`,
-                      minWidth: 100,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    className="excel-preview-body-cell"
                   >
                     {row?.[j] || ""}
                   </TableCell>
@@ -175,48 +115,41 @@ export default function ExcelPreview({ processedFileBase64 }) {
 
   if (loading) {
     return (
-      <PreviewContainer>
-        <EmptyState>
+      <Box className="excel-preview-container">
+        <Box className="excel-preview-empty-state">
           <CircularProgress />
-          <Typography variant="body1" sx={{ mt: 2 }}>
+          <Typography variant="body1" className="excel-preview-loading-text">
             Loading preview...
           </Typography>
-        </EmptyState>
-      </PreviewContainer>
+        </Box>
+      </Box>
     );
   }
 
   if (!processedFileBase64 || sheetNames.length === 0) {
     return (
-      <PreviewContainer>
-        <EmptyState>
-          <Typography variant="h6" sx={{ mb: 1 }}>
+      <Box className="excel-preview-container">
+        <Box className="excel-preview-empty-state">
+          <Typography variant="h6" className="excel-preview-empty-state-title">
             No file to preview
           </Typography>
-          <Typography variant="body2" sx={{ textAlign: "center" }}>
+          <Typography variant="body2" className="excel-preview-empty-state-text">
             Process an Excel file through the chat to see the preview here
           </Typography>
-        </EmptyState>
-      </PreviewContainer>
+        </Box>
+      </Box>
     );
   }
 
   return (
-    <PreviewContainer>
-      <PreviewContent>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, color: "#213547" }}>
+    <Box className="excel-preview-container">
+      <Box className="excel-preview-content">
+        <Typography variant="h5" className="excel-preview-title">
           Processed Excel Preview
         </Typography>
 
         {sheetNames.length > 1 && (
-          <Box
-            sx={{
-              mb: 2,
-              borderBottom: 1,
-              borderColor: "divider",
-              width: "100%",
-            }}
-          >
+          <Box className="excel-preview-tabs-container">
             <Tabs
               value={activeSheet}
               onChange={(e, newValue) => setActiveSheet(newValue)}
@@ -225,15 +158,15 @@ export default function ExcelPreview({ processedFileBase64 }) {
               allowScrollButtonsMobile
             >
               {sheetNames.map((name, index) => (
-                <Tab key={index} label={name} sx={{ textTransform: "none" }} />
+                <Tab key={index} label={name} className="excel-preview-tab" />
               ))}
             </Tabs>
           </Box>
         )}
 
         {renderTable(previewData[sheetNames[activeSheet]] || [])}
-      </PreviewContent>
-    </PreviewContainer>
+      </Box>
+    </Box>
   );
 }
 

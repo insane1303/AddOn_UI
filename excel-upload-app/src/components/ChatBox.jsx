@@ -190,10 +190,159 @@ export default function ChatBox({ onSendMessage, loading, processedFileBase64, o
     }
   };
 
+  // Format markdown-like text to readable format
+  const formatMessageText = (text) => {
+    if (!text) return null;
+
+    // Split by lines to process each line
+    const lines = text.split(/\n/);
+    const elements = [];
+    let currentList = [];
+    let currentParagraph = [];
+
+    const flushList = () => {
+      if (currentList.length > 0) {
+        elements.push(
+          <Box key={`list-${elements.length}`} sx={{ mb: 1.5 }}>
+            {currentList.map((item, idx) => (
+              <Box key={idx} sx={{ mb: 1, display: "flex", gap: 1, alignItems: "flex-start" }}>
+                <Typography component="span" sx={{ fontWeight: 600, minWidth: "28px", flexShrink: 0 }}>
+                  {item.number}.
+                </Typography>
+                <Typography component="span" variant="body2" sx={{ flex: 1, lineHeight: 1.6 }}>
+                  {formatInlineText(item.text)}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        );
+        currentList = [];
+      }
+    };
+
+    const flushParagraph = () => {
+      if (currentParagraph.length > 0) {
+        const paragraphText = currentParagraph.join(" ");
+        if (paragraphText.trim()) {
+          elements.push(
+            <Box key={`para-${elements.length}`} sx={{ mb: 1.5, lineHeight: 1.6 }}>
+              <Typography variant="body2" component="div">
+                {formatInlineText(paragraphText)}
+              </Typography>
+            </Box>
+          );
+        }
+        currentParagraph = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      // Check if it's a numbered list item (1., 2., etc.)
+      const listMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+      if (listMatch) {
+        flushParagraph();
+        currentList.push({
+          number: listMatch[1],
+          text: listMatch[2]
+        });
+        return;
+      }
+
+      // Check if it's a header (### or ##)
+      if (trimmedLine.startsWith("###")) {
+        flushList();
+        flushParagraph();
+        const headerText = trimmedLine.replace(/^###+\s*/, "");
+        elements.push(
+          <Typography 
+            key={`header-${elements.length}`} 
+            variant="subtitle2" 
+            sx={{ fontWeight: 700, mb: 1, mt: elements.length > 0 ? 2 : 0, fontSize: "0.95rem" }}
+          >
+            {formatInlineText(headerText)}
+          </Typography>
+        );
+        return;
+      }
+
+      // If we have a list and this line is not a list item, flush the list
+      if (currentList.length > 0 && !listMatch) {
+        flushList();
+      }
+
+      // Regular text line
+      if (trimmedLine) {
+        currentParagraph.push(trimmedLine);
+      } else if (currentParagraph.length > 0) {
+        // Empty line - flush current paragraph
+        flushParagraph();
+      }
+    });
+
+    // Flush any remaining content
+    flushList();
+    flushParagraph();
+
+    return elements.length > 0 ? elements : formatInlineText(text);
+  };
+
+  // Format inline markdown (bold, line breaks)
+  const formatInlineText = (text) => {
+    if (!text) return null;
+
+    // Split by newlines first
+    const lines = text.split(/\n/);
+    
+    return lines.map((line, lineIndex) => {
+      const parts = [];
+      let lastIndex = 0;
+      
+      // Find and replace **bold** text
+      const boldRegex = /\*\*([^*]+)\*\*/g;
+      let match;
+      
+      while ((match = boldRegex.exec(line)) !== null) {
+        // Add text before bold
+        if (match.index > lastIndex) {
+          parts.push(
+            <span key={`text-${lineIndex}-${lastIndex}`}>
+              {line.substring(lastIndex, match.index)}
+            </span>
+          );
+        }
+        // Add bold text
+        parts.push(
+          <strong key={`bold-${lineIndex}-${match.index}`}>
+            {match[1]}
+          </strong>
+        );
+        lastIndex = match.index + match[0].length;
+      }
+      
+      // Add remaining text
+      if (lastIndex < line.length) {
+        parts.push(
+          <span key={`text-${lineIndex}-${lastIndex}`}>
+            {line.substring(lastIndex)}
+          </span>
+        );
+      }
+      
+      return (
+        <React.Fragment key={lineIndex}>
+          {parts.length > 0 ? parts : line}
+          {lineIndex < lines.length - 1 && <br />}
+        </React.Fragment>
+      );
+    });
+  };
+
   return (
     <Box className="chat-container">
       <Box className="chat-header">
-        <Typography variant="h1" className="chat-header-title">
+        <Typography variant="h6" className="chat-header-title">
           Chat
         </Typography>
       </Box>
@@ -223,12 +372,12 @@ export default function ChatBox({ onSendMessage, loading, processedFileBase64, o
                     className={`message-bubble message-bubble-assistant ${message.isError ? "message-bubble-error" : ""}`}
                     elevation={0}
                   >
-                    <Typography 
-                      variant="body2"
+                    <Box 
                       className={`message-text ${message.isError ? "message-text-error" : ""}`}
+                      sx={{ whiteSpace: "pre-wrap" }}
                     >
-                      {message.text}
-                    </Typography>
+                      {formatMessageText(message.text)}
+                    </Box>
                   </Paper>
                 )}
                 {/* File card */}
@@ -265,12 +414,12 @@ export default function ChatBox({ onSendMessage, loading, processedFileBase64, o
                 elevation={0}
               >
                 {message.text && (
-                  <Typography 
-                    variant="body2" 
+                  <Box 
                     className={`message-text ${message.hasAttachment ? "message-text-with-attachment" : ""} ${message.isError ? "message-text-error" : ""}`}
+                    sx={{ whiteSpace: "pre-wrap" }}
                   >
-                    {message.text}
-                  </Typography>
+                    {message.isUser ? message.text : formatMessageText(message.text)}
+                  </Box>
                 )}
                 {message.hasAttachment && message.attachmentFileName && (
                   <Box className={`message-attachment ${message.isUser ? "" : "message-attachment-assistant"}`}>

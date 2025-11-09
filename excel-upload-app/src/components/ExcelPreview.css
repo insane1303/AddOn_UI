@@ -1,0 +1,131 @@
+/* Excel Preview Container */
+.excel-preview-container {
+  flex: 1;
+  overflow: auto;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+/* Excel Preview Content */
+.excel-preview-content {
+  flex: 1;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Empty State */
+.excel-preview-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6c757d;
+}
+
+.excel-preview-empty-state-title {
+  margin-bottom: 8px;
+}
+
+.excel-preview-empty-state-text {
+  text-align: center;
+}
+
+.excel-preview-loading-text {
+  margin-top: 16px;
+}
+
+/* Preview Title */
+.excel-preview-title {
+  margin-bottom: 24px;
+  font-weight: 600;
+  color: #213547;
+}
+
+/* Tabs Container */
+.excel-preview-tabs-container {
+  margin-bottom: 16px;
+  border-bottom: 1px solid;
+  border-color: rgba(0, 0, 0, 0.12);
+  width: 100%;
+}
+
+.excel-preview-tab {
+  text-transform: none;
+}
+
+/* Table Container */
+.excel-preview-table-container {
+  height: calc(100vh - 200px);
+  overflow: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.excel-preview-table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.excel-preview-table-container::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+}
+
+.excel-preview-table-container::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 4px;
+}
+
+.excel-preview-table-container::-webkit-scrollbar-thumb:hover {
+  background-color: #555;
+}
+
+/* Table */
+.excel-preview-table {
+  table-layout: auto;
+  width: 100%;
+  min-width: max-content;
+}
+
+/* Table Header Cell */
+.excel-preview-header-cell {
+  font-weight: bold;
+  background-color: #f5f5f5;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-width: 150px;
+  max-width: 400px;
+  white-space: normal;
+  word-wrap: break-word;
+  padding: 14px 16px;
+  line-height: 1.5;
+}
+
+/* Table Body Cell */
+.excel-preview-body-cell {
+  min-width: 150px;
+  max-width: 400px;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  padding: 14px 16px;
+  vertical-align: top;
+  line-height: 1.6;
+  height: auto;
+  max-height: none;
+}
+
+/* Table Row Hover */
+.excel-preview-table-row:hover {
+  background-color: #fafafa;
+}
+

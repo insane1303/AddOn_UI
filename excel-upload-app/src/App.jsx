@@ -20,21 +20,21 @@ function App() {
   const handleSendMessage = async (requestData) => {
     setLoading(true);
     try {
-      // Prepare request - send only excelFile format
-      // Format: { userInput: string, excelFile: base64 }
+      // Prepare request - send only base64file format
+      // Format: { input: string, base64file: base64 }
       const requestPayload = {
-        userInput: requestData.userInput || "",
-        excelFile: requestData.excelFile || null,
+        input: requestData.userInput || "",
+        base64file: requestData.excelFile || null,
       };
       
       console.log("Sending request with payload:", {
-        hasUserInput: !!requestPayload.userInput,
-        hasExcelFile: !!requestPayload.excelFile,
+        hasInput: !!requestPayload.input,
+        hasBase64File: !!requestPayload.base64file,
       });
       
-      // Send to backend with the structure: { userInput: string, excelFile: base64 }
+      // Send to backend with the structure: { input: string, base64file: base64 }
       const response = await axios.post(
-        "http://localhost:5000/api/processExcel",
+        "https://fern-subfrontal-unathletically.ngrok-free.dev/query",
         requestPayload,
         {
           headers: {
@@ -43,7 +43,7 @@ function App() {
         }
       );
 
-      // Handle response - backend should return processedFile in base64 format
+      // Handle response - backend returns { ok, content, base64file, ... }
       console.log("Full response:", response);
       console.log("Response data:", response.data);
       console.log("Response data type:", typeof response.data);
@@ -60,40 +60,39 @@ function App() {
       }
       
       if (responseData) {
-        // Extract processed file from response - try multiple possible field names
-        const processedFile = 
-          responseData.processedFile || 
-          responseData.processed_file || 
-          responseData.fileData ||
-          responseData.processedFileBase64 ||
-          (responseData.data && responseData.data.processedFile);
+        // Extract content message from response
+        const contentMessage = responseData.content || responseData.message || "Request processed successfully";
         
-        console.log("Extracted processedFile:", processedFile ? "Found" : "Not found");
-        console.log("ProcessedFile type:", typeof processedFile);
-        console.log("ProcessedFile length:", processedFile ? processedFile.length : 0);
-        console.log("ProcessedFile preview:", processedFile ? processedFile.substring(0, 50) + "..." : "N/A");
+        // Extract processed file from base64file field
+        const processedFile = responseData.base64file || null;
+        
+        console.log("Extracted content:", contentMessage ? "Found" : "Not found");
+        console.log("Extracted base64file:", processedFile ? "Found" : "Not found");
+        console.log("Base64file length:", processedFile ? processedFile.length : 0);
+        console.log("Base64file preview:", processedFile ? processedFile.substring(0, 50) + "..." : "N/A");
         
         if (processedFile && typeof processedFile === 'string' && processedFile.length > 0) {
           setProcessedFileBase64(processedFile);
           // Generate filename based on original file name if available, or use timestamp
           const fileName = responseData.fileName || 
             responseData.filename ||
+            responseData.current_file_path ? responseData.current_file_path.split('/').pop() : null ||
             (originalFileName ? `${originalFileName}_processed.xlsx` : null) ||
             `processed_file_${new Date().getTime()}.xlsx`;
           return {
-            message: responseData.message || "File processed successfully",
+            message: contentMessage,
             processedFile: processedFile,
             fileName: fileName,
-            success: true,
+            success: responseData.ok !== false,
           };
         }
         
-        // If no processed file but we have a message, still return success
-        console.warn("No processed file found in response. Response structure:", responseData);
+        // If no processed file but we have content message, still return success
+        console.warn("No base64file found in response. Response structure:", responseData);
         return {
-          message: responseData.message || "Request processed successfully",
+          message: contentMessage,
           processedFile: null,
-          success: true,
+          success: responseData.ok !== false,
         };
       }
       

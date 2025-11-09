@@ -79,7 +79,7 @@
 }
 
 .message-bubble-user:hover {
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
 }
 
 .message-bubble-assistant {
@@ -179,10 +179,16 @@
 .file-card-download {
   color: #007bff;
   flex-shrink: 0;
+  transition: color 0.2s ease;
 }
 
 .file-card-download:hover {
   background-color: rgba(0, 123, 255, 0.1);
+  color: #28a745 !important;
+}
+
+.file-card-download:hover svg {
+  color: #28a745 !important;
 }
 
 /* Empty State */
